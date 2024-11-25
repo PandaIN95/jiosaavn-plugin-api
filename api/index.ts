@@ -1,16 +1,24 @@
 import { Hono } from 'hono'
-import { handle } from 'hono/vercel'
+import { handle } from '@hono/node-server/vercel'
 import { cors } from 'hono/cors'
 import { logger } from 'hono/logger'
 import { prettyJSON } from 'hono/pretty-json'
+import { JioSaavnAPI } from './jioSaavn.js'
 
-import { JioSaavnAPI } from './jioSaavn'
 
 export const config = {
-  runtime: 'edge'
+  api: {
+    bodyParser: false,
+  },
 }
 
 const app = new Hono().basePath('/api')
+
+app.get('/', (c) => {
+  return c.json({
+    message: 'JioSaavn API by Appujet',
+  })
+})
 
 app.use('*', cors())
 app.use('*', logger())
@@ -18,16 +26,18 @@ app.use('*', prettyJSON())
 
 const api = new JioSaavnAPI()
 
-app.get('/', (c) => {
-  return c.json({ message: 'Hello Hono!' })
-})
-
 app.get('/search', async (c) => {
-  const query = c.req.query('q')
-  if (!query) return c.json({ error: 'Missing query' })
-  const results = await api.search(query)
-  return c.json(results)
-})
+  const query = c.req.query('q');
+  if (!query) return c.json({ error: 'Missing query' });
+  try {
+    const results = await api.search(query);
+    return c.json(results);
+  } catch (error: any) {
+    console.error('Error:', error); // Log the error
+    return c.json({ error: 'Failed to fetch results', details: error.message });
+  }
+});
+
 
 app.get('/track', async (c) => {
   const url = c.req.query('url')
@@ -78,6 +88,5 @@ app.get('/recommendations', async (c) => {
   const recommendations = await api.getRecommendations(id, limit)
   return c.json(recommendations)
 })
-
 
 export default handle(app)
